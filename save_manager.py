@@ -79,12 +79,12 @@ def lire_infos_save(chemin: str) -> Optional[Dict]:
 
 
 def formater_date(chemin: str, pour_fichier: bool = False) -> str:
-    modele = "%Y-%m-%d_%Hh%M" if pour_fichier else "%d/%m/%Y %H:%M"
+    modele = "%Y-%m-%d_%Hh%M" if pour_fichier else "%Y-%m-%d %H:%M"
     return time.strftime(modele, time.localtime(os.path.getmtime(chemin)))
 
 
 def formater_taille(chemin: str) -> str:
-    return f"{os.path.getsize(chemin) / 1_000_000:.1f} Mo"
+    return f"{os.path.getsize(chemin) / 1_000_000:.1f} MB"
 
 
 def lister_slots() -> List[Dict]:
@@ -133,11 +133,11 @@ def verifier_nom(nom: str) -> str:
     """Nettoie le nom et lève ValueError s'il ne peut pas servir de dossier."""
     nom = nom.strip().rstrip(".")
     if not nom:
-        raise ValueError("Le nom ne peut pas être vide.")
+        raise ValueError("The name cannot be empty.")
     if any(c in CARACTERES_INTERDITS or ord(c) < 32 for c in nom):
-        raise ValueError(f"Le nom ne peut pas contenir : {CARACTERES_INTERDITS}")
+        raise ValueError(f"The name cannot contain: {CARACTERES_INTERDITS}")
     if nom.upper() in NOMS_RESERVES:
-        raise ValueError(f"« {nom} » est un nom réservé par Windows.")
+        raise ValueError(f'"{nom}" is a name reserved by Windows.')
     return nom
 
 
@@ -152,7 +152,7 @@ def nommer_monde(seed: int, nom: str) -> str:
             os.rename(ancien, nouveau)
         return nouveau
     if os.path.exists(nouveau):
-        raise ValueError(f"Un autre monde s'appelle déjà « {nom} ».")
+        raise ValueError(f'Another world is already named "{nom}".')
 
     if ancien is not None:
         os.rename(ancien, nouveau)
@@ -168,10 +168,10 @@ def deplacer_slot_vers_monde(numero: int) -> str:
     source = chemin_slot(numero)
     infos = lire_infos_save(source)
     if infos is None:
-        raise ValueError(f"Le slot {numero} est vide ou illisible.")
+        raise ValueError(f"Slot {numero} is empty or unreadable.")
     dossier = lister_mondes().get(infos["seed"])
     if dossier is None:
-        raise LookupError("Ce monde n'a pas encore de nom.")
+        raise LookupError("This world has no name yet.")
 
     base = f"save_{formater_date(source, pour_fichier=True)}"
     destination = os.path.join(dossier, base + ".dat")
@@ -187,7 +187,7 @@ def copier_vers_slot(chemin_save: str, numero: int, ecraser: bool = False) -> No
     """Copie une save rangée vers un slot (la save rangée reste dans le monde)."""
     destination = chemin_slot(numero)
     if os.path.exists(destination) and not ecraser:
-        raise FileExistsError(f"Le slot {numero} est déjà occupé.")
+        raise FileExistsError(f"Slot {numero} is already in use.")
     shutil.copy2(chemin_save, destination)
 
 
@@ -209,7 +209,7 @@ class _SHFILEOPSTRUCTW(ctypes.Structure):
 def supprimer_save(chemin: str) -> None:
     """Envoie une save à la corbeille Windows (récupérable en cas d'erreur)."""
     if not os.path.isfile(chemin):
-        raise FileNotFoundError(f"Fichier introuvable : {chemin}")
+        raise FileNotFoundError(f"File not found: {chemin}")
     # pFrom doit finir par deux caractères nuls : un ici, un ajouté par le buffer.
     source = ctypes.create_unicode_buffer(os.path.abspath(chemin) + "\0")
     operation = _SHFILEOPSTRUCTW()
@@ -219,7 +219,7 @@ def supprimer_save(chemin: str) -> None:
     operation.fFlags = 0x0004 | 0x0010 | 0x0040 | 0x0400
     code = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(operation))
     if code != 0 or operation.fAnyOperationsAborted or os.path.exists(chemin):
-        raise OSError(f"Impossible d'envoyer à la corbeille : {os.path.basename(chemin)}")
+        raise OSError(f"Could not send to the Recycle Bin: {os.path.basename(chemin)}")
 
 
 # --------------------------------------------------------------------------
@@ -229,7 +229,7 @@ def supprimer_save(chemin: str) -> None:
 class GestionnaireSaves(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("Sauvegardes Primitier")
+        self.title("Primitier Saves")
 
         self.slots = []  # type: List[Dict]
         self.mondes = {}  # type: Dict[int, str]
@@ -250,7 +250,7 @@ class GestionnaireSaves(tk.Tk):
         barre = ttk.Frame(self)
         barre.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=(10, 0))
         ttk.Checkbutton(
-            barre, text="Mode VR", style="Toolbutton", variable=self.mode_vr,
+            barre, text="VR mode", style="Toolbutton", variable=self.mode_vr,
             command=self.appliquer_mode_vr,
         ).pack(side="right")
 
@@ -260,18 +260,18 @@ class GestionnaireSaves(tk.Tk):
         self.rowconfigure(1, weight=1)
 
         # --- Slots du jeu ---
-        self.cadre_slots = ttk.LabelFrame(self, text="Slots du jeu", padding=8)
+        self.cadre_slots = ttk.LabelFrame(self, text="Game slots", padding=8)
         self.cadre_slots.grid(row=1, column=0, sticky="nsew", padx=(10, 5), pady=10)
         self.cadre_slots.rowconfigure(0, weight=1)
         self.cadre_slots.columnconfigure(0, weight=1)
 
         self.colonnes_slots = (
             ("slot", "Slot", 45),
-            ("monde", "Monde", 150),
+            ("monde", "World", 150),
             ("seed", "Seed", 100),
             ("mode", "Mode", 65),
             ("date", "Date", 115),
-            ("taille", "Taille", 65),
+            ("taille", "Size", 65),
         )
         self.arbre_slots = ttk.Treeview(
             self.cadre_slots, columns=[c[0] for c in self.colonnes_slots],
@@ -289,26 +289,26 @@ class GestionnaireSaves(tk.Tk):
         self.cadre_boutons_slots.grid(
             row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         self.boutons_slots = [
-            ttk.Button(self.cadre_boutons_slots, text="Nommer ce monde",
+            ttk.Button(self.cadre_boutons_slots, text="Name this world",
                        command=self.nommer_selection),
-            ttk.Button(self.cadre_boutons_slots, text="Déplacer dans son monde  →",
+            ttk.Button(self.cadre_boutons_slots, text="Move to its world  →",
                        command=self.deplacer_selection),
-            ttk.Button(self.cadre_boutons_slots, text="Supprimer",
+            ttk.Button(self.cadre_boutons_slots, text="Delete",
                        command=self.supprimer_slot),
-            ttk.Button(self.cadre_boutons_slots, text="Actualiser",
+            ttk.Button(self.cadre_boutons_slots, text="Refresh",
                        command=self.actualiser),
         ]
 
         # --- Mondes ---
-        self.cadre_mondes = ttk.LabelFrame(self, text="Mes mondes", padding=8)
+        self.cadre_mondes = ttk.LabelFrame(self, text="My worlds", padding=8)
         self.cadre_mondes.grid(row=1, column=1, sticky="nsew", padx=(5, 10), pady=10)
         self.cadre_mondes.rowconfigure(0, weight=1)
         self.cadre_mondes.columnconfigure(0, weight=1)
 
         self.colonnes_mondes = (
-            ("#0", "Monde / save", 250),
+            ("#0", "World / save", 250),
             ("detail", "Seed / mode", 100),
-            ("taille", "Taille", 65),
+            ("taille", "Size", 65),
         )
         self.arbre_mondes = ttk.Treeview(
             self.cadre_mondes, columns=("detail", "taille"), selectmode="browse",
@@ -322,13 +322,13 @@ class GestionnaireSaves(tk.Tk):
         self.cadre_boutons_mondes.grid(
             row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         self.boutons_mondes = [
-            ttk.Button(self.cadre_boutons_mondes, text="←  Copier vers un slot",
+            ttk.Button(self.cadre_boutons_mondes, text="←  Copy to a slot",
                        command=self.copier_selection),
-            ttk.Button(self.cadre_boutons_mondes, text="Renommer",
+            ttk.Button(self.cadre_boutons_mondes, text="Rename",
                        command=self.renommer_monde),
-            ttk.Button(self.cadre_boutons_mondes, text="Supprimer",
+            ttk.Button(self.cadre_boutons_mondes, text="Delete",
                        command=self.supprimer_save_monde),
-            ttk.Button(self.cadre_boutons_mondes, text="Ouvrir le dossier",
+            ttk.Button(self.cadre_boutons_mondes, text="Open folder",
                        command=self.ouvrir_dossier),
         ]
 
@@ -419,17 +419,17 @@ class GestionnaireSaves(tk.Tk):
         for slot in self.slots:
             numero, infos = slot["numero"], slot["infos"]
             if not slot["existe"]:
-                valeurs = (numero, "(vide)", "", "", "", "")
+                valeurs = (numero, "(empty)", "", "", "", "")
             elif infos is None:
-                valeurs = (numero, "(illisible)", "", "",
+                valeurs = (numero, "(unreadable)", "", "",
                            formater_date(slot["chemin"]), formater_taille(slot["chemin"]))
             else:
                 dossier = self.mondes.get(infos["seed"])
                 valeurs = (
                     numero,
-                    os.path.basename(dossier) if dossier else "(sans nom)",
+                    os.path.basename(dossier) if dossier else "(unnamed)",
                     infos["seed"],
-                    "Créatif" if infos["creatif"] else "Survie",
+                    "Creative" if infos["creatif"] else "Survival",
                     formater_date(slot["chemin"]),
                     formater_taille(slot["chemin"]),
                 )
@@ -447,9 +447,9 @@ class GestionnaireSaves(tk.Tk):
             for chemin in lister_saves_monde(dossier):
                 infos = lire_infos_save(chemin)
                 if infos is None:
-                    mode = "illisible"
+                    mode = "unreadable"
                 else:
-                    mode = "Créatif" if infos["creatif"] else "Survie"
+                    mode = "Creative" if infos["creatif"] else "Survival"
                 self.arbre_mondes.insert(
                     dossier, "end", iid=chemin, text=os.path.basename(chemin),
                     values=(mode, formater_taille(chemin)),
@@ -458,12 +458,12 @@ class GestionnaireSaves(tk.Tk):
     def _slot_selectionne(self) -> Optional[Dict]:
         selection = self.arbre_slots.selection()
         if not selection:
-            messagebox.showinfo("Slots", "Sélectionne d'abord un slot.", parent=self)
+            messagebox.showinfo("Slots", "Select a slot first.", parent=self)
             return None
         slot = self.slots[int(selection[0]) - 1]
         if slot["infos"] is None:
             messagebox.showinfo(
-                "Slots", f"Le slot {slot['numero']} est vide ou illisible.", parent=self)
+                "Slots", f"Slot {slot['numero']} is empty or unreadable.", parent=self)
             return None
         return slot
 
@@ -471,7 +471,7 @@ class GestionnaireSaves(tk.Tk):
         """Demande un nom pour le monde et crée/renomme son dossier."""
         while True:
             nom = simpledialog.askstring(
-                "Nom du monde", f"Nom du monde (seed {seed}) :",
+                "World name", f"World name (seed {seed}):",
                 initialvalue=actuel, parent=self,
             )
             if nom is None:
@@ -480,7 +480,7 @@ class GestionnaireSaves(tk.Tk):
                 nommer_monde(seed, nom)
                 return True
             except (ValueError, OSError) as erreur:
-                messagebox.showerror("Nom du monde", str(erreur), parent=self)
+                messagebox.showerror("World name", str(erreur), parent=self)
                 actuel = nom
 
     # --- Actions ---
@@ -504,13 +504,13 @@ class GestionnaireSaves(tk.Tk):
         try:
             deplacer_slot_vers_monde(slot["numero"])
         except (ValueError, LookupError, OSError) as erreur:
-            messagebox.showerror("Déplacement impossible", str(erreur), parent=self)
+            messagebox.showerror("Cannot move", str(erreur), parent=self)
         self.actualiser()
 
     def renommer_monde(self) -> None:
         selection = self.arbre_mondes.selection()
         if not selection:
-            messagebox.showinfo("Mondes", "Sélectionne d'abord un monde.", parent=self)
+            messagebox.showinfo("Worlds", "Select a world first.", parent=self)
             return
         dossier = self.arbre_mondes.parent(selection[0]) or selection[0]
         seed = next(s for s, d in self.mondes.items() if d == dossier)
@@ -521,15 +521,15 @@ class GestionnaireSaves(tk.Tk):
         selection = self.arbre_mondes.selection()
         if not selection or not self.arbre_mondes.parent(selection[0]):
             messagebox.showinfo(
-                "Mondes", "Sélectionne d'abord une save dans un monde.", parent=self)
+                "Worlds", "Select a save inside a world first.", parent=self)
             return
         chemin = selection[0]
 
         libres = [str(s["numero"]) for s in self.slots if not s["existe"]]
         numero = simpledialog.askinteger(
-            "Copier vers un slot",
-            f"Slot de destination (1 à {NOMBRE_SLOTS}).\n"
-            f"Slots libres : {', '.join(libres) if libres else 'aucun'}",
+            "Copy to a slot",
+            f"Destination slot (1 to {NOMBRE_SLOTS}).\n"
+            f"Free slots: {', '.join(libres) if libres else 'none'}",
             minvalue=1, maxvalue=NOMBRE_SLOTS,
             initialvalue=int(libres[0]) if libres else None, parent=self,
         )
@@ -538,9 +538,9 @@ class GestionnaireSaves(tk.Tk):
         ecraser = False
         if os.path.exists(chemin_slot(numero)):
             ecraser = messagebox.askyesno(
-                "Slot occupé",
-                f"Le slot {numero} contient déjà une save.\n"
-                "L'écraser ? Elle sera perdue si elle n'est pas rangée dans un monde.",
+                "Slot in use",
+                f"Slot {numero} already contains a save.\n"
+                "Overwrite it? It will be lost unless it is stored in a world.",
                 icon="warning", default="no", parent=self,
             )
             if not ecraser:
@@ -548,13 +548,13 @@ class GestionnaireSaves(tk.Tk):
         try:
             copier_vers_slot(chemin, numero, ecraser=ecraser)
         except OSError as erreur:
-            messagebox.showerror("Copie impossible", str(erreur), parent=self)
+            messagebox.showerror("Cannot copy", str(erreur), parent=self)
         self.actualiser()
 
     def _confirmer_suppression(self, chemin: str, description: str) -> None:
         confirme = messagebox.askyesno(
-            "Supprimer la save",
-            f"Supprimer {description} ?\n\nElle sera envoyée à la corbeille.",
+            "Delete save",
+            f"Delete {description}?\n\nIt will be sent to the Recycle Bin.",
             icon="warning", default="no", parent=self,
         )
         if not confirme:
@@ -562,33 +562,33 @@ class GestionnaireSaves(tk.Tk):
         try:
             supprimer_save(chemin)
         except OSError as erreur:
-            messagebox.showerror("Suppression impossible", str(erreur), parent=self)
+            messagebox.showerror("Cannot delete", str(erreur), parent=self)
         self.actualiser()
 
     def supprimer_slot(self) -> None:
         selection = self.arbre_slots.selection()
         if not selection:
-            messagebox.showinfo("Slots", "Sélectionne d'abord un slot.", parent=self)
+            messagebox.showinfo("Slots", "Select a slot first.", parent=self)
             return
         slot = self.slots[int(selection[0]) - 1]
         if not slot["existe"]:
             messagebox.showinfo(
-                "Slots", f"Le slot {slot['numero']} est déjà vide.", parent=self)
+                "Slots", f"Slot {slot['numero']} is already empty.", parent=self)
             return
         monde = self.arbre_slots.set(selection[0], "monde")
         self._confirmer_suppression(
-            slot["chemin"], f"la save du slot {slot['numero']} — {monde}")
+            slot["chemin"], f"the save in slot {slot['numero']} — {monde}")
 
     def supprimer_save_monde(self) -> None:
         selection = self.arbre_mondes.selection()
         if not selection or not self.arbre_mondes.parent(selection[0]):
             messagebox.showinfo(
-                "Mondes", "Sélectionne d'abord une save dans un monde.", parent=self)
+                "Worlds", "Select a save inside a world first.", parent=self)
             return
         chemin = selection[0]
         monde = os.path.basename(os.path.dirname(chemin))
         self._confirmer_suppression(
-            chemin, f"« {os.path.basename(chemin)} » du monde « {monde} »")
+            chemin, f'"{os.path.basename(chemin)}" from world "{monde}"')
 
     def ouvrir_dossier(self) -> None:
         selection = self.arbre_mondes.selection()
@@ -599,7 +599,7 @@ class GestionnaireSaves(tk.Tk):
         if os.path.isdir(dossier):
             os.startfile(dossier)
         else:
-            messagebox.showinfo("Mondes", "Aucun monde n'a encore été créé.", parent=self)
+            messagebox.showinfo("Worlds", "No world has been created yet.", parent=self)
 
 
 if __name__ == "__main__":

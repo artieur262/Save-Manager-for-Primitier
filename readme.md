@@ -1,89 +1,95 @@
-# Gestionnaire de sauvegardes Primitier
+# Primitier save manager
 
-Ce projet fournit une petite interface graphique pour ranger les sauvegardes de Primitier par monde, au lieu de se limiter aux slots du jeu.
+This project provides a small graphical interface to organise Primitier saves by world, instead of being limited to the game's slots.
 
-## Ce que fait le programme
+## What the program does
 
-- Il affiche les slots du jeu (`save1.dat` à `save8.dat`) avec, pour chacun, le nom du monde, la seed, le mode (Créatif ou Survie), la date et la taille.
-- Il permet de donner un nom à un monde : un dossier `Mondes/<nom>/` est créé, avec un fichier `seed.txt` qui contient la seed du monde.
-- Il déplace une save d'un slot vers le dossier de son monde, ce qui libère le slot.
-- Il recopie une save rangée vers un slot pour y rejouer.
-- Il supprime une save, en l'envoyant à la corbeille Windows.
-- Il propose un mode VR, avec une interface grossie pour être utilisable dans le casque.
+- It shows the game slots (`save1.dat` to `save8.dat`) with, for each one, the world name, the seed, the mode (Creative or Survival), the date and the size.
+- It lets you give a world a name: a `Mondes/<name>/` folder is created, with a `seed.txt` file containing the world's seed.
+- It moves a save from a slot to its world's folder, which frees the slot.
+- It copies a stored save back to a slot so you can play it again.
+- It deletes a save by sending it to the Windows Recycle Bin.
+- It offers a VR mode, with an enlarged interface that is usable in the headset.
 
-## Lancer le programme
+## Running the program
 
 ```
 py save_manager.py
 ```
 
-Il faut Python 3.6 ou plus récent, sous Windows. Aucune bibliothèque à installer : le programme n'utilise que la bibliothèque standard (dont `tkinter`).
+You need Python 3.6 or newer, on Windows. There is nothing to install: the program only uses the standard library (including `tkinter`).
 
-Le script peut être rangé et lancé depuis n'importe quel dossier : il retrouve tout seul le dossier `Documents\Primitier\Saves` de l'utilisateur Windows courant.
+You can also run `save_manager.exe`, which works without Python. It is a snapshot of the script: if you change `save_manager.py`, rebuild it with:
 
-Évite de déplacer, copier ou supprimer des saves pendant que le jeu tourne.
+```
+py -m PyInstaller --onefile --windowed --name save_manager save_manager.py
+```
 
-## Comment s'en servir
+The script and the exe can be stored in and launched from any folder: they find the current Windows user's `Documents\Primitier\Saves` folder on their own.
 
-La fenêtre a deux panneaux : les slots du jeu à gauche, tes mondes à droite.
+Avoid moving, copying or deleting saves while the game is running.
 
-### Slots du jeu (à gauche)
+## How to use it
 
-- **Nommer ce monde** : donne un nom au monde de la save sélectionnée et crée son dossier. Si le monde a déjà un nom, ça le renomme.
-- **Déplacer dans son monde →** : range la save dans le dossier de son monde. Si le monde n'a pas encore de nom, le programme le demande à ce moment-là. Un double-clic sur un slot fait la même chose.
-- **Supprimer** : envoie la save du slot à la corbeille, après confirmation.
-- **Actualiser** : relit les slots et les mondes, par exemple après avoir sauvegardé dans le jeu.
+The window has two panels: the game slots on the left, your worlds on the right.
 
-### Mes mondes (à droite)
+### Game slots (left)
 
-Chaque monde s'affiche avec sa seed, et se déplie pour montrer les saves rangées dedans.
+- **Name this world**: gives a name to the world of the selected save and creates its folder. If the world already has a name, this renames it.
+- **Move to its world →**: stores the save in its world's folder. If the world has no name yet, the program asks for one at that point. Double-clicking a slot does the same thing.
+- **Delete**: sends the slot's save to the Recycle Bin, after confirmation.
+- **Refresh**: reads the slots and worlds again, for example after saving in the game.
 
-- **← Copier vers un slot** : copie la save sélectionnée dans le slot de ton choix. La save rangée reste dans le monde. Si le slot est déjà occupé, le programme demande confirmation avant de l'écraser.
-- **Renommer** : renomme le monde (et son dossier).
-- **Supprimer** : envoie la save rangée sélectionnée à la corbeille, après confirmation. Le dossier du monde et son `seed.txt` restent en place.
-- **Ouvrir le dossier** : ouvre le dossier du monde dans l'explorateur Windows.
+### My worlds (right)
 
-### Mode VR
+Each world is shown with its seed, and expands to show the saves stored in it.
 
-Le bouton **Mode VR**, en haut à droite, active ou désactive une interface pensée pour le casque :
+- **← Copy to a slot**: copies the selected save to the slot of your choice. The stored save stays in the world. If the slot is already in use, the program asks for confirmation before overwriting it.
+- **Rename**: renames the world (and its folder).
+- **Delete**: sends the selected stored save to the Recycle Bin, after confirmation. The world's folder and its `seed.txt` stay in place.
+- **Open folder**: opens the world's folder in Windows Explorer.
 
-- le texte et les boutons sont grossis ;
-- une barre de défilement large apparaît à côté de chaque liste ;
-- la fenêtre passe en plein écran.
+### VR mode
 
-Le mode n'est pas mémorisé : le programme s'ouvre toujours en mode normal.
+The **VR mode** button, at the top right, turns on or off an interface designed for the headset:
 
-Les fenêtres de confirmation (Oui / Non) sont celles de Windows et gardent leur taille normale. Pour taper le nom d'un monde ou un numéro de slot, il faut un clavier.
+- text and buttons are enlarged;
+- a wide scrollbar appears next to each list;
+- the window is maximised.
 
-## Comment les saves sont rangées
+The mode is not remembered: the program always opens in normal mode.
 
-Un monde est reconnu par sa seed. Une save va toujours dans le dossier du monde qui a la même seed : impossible de la ranger dans le mauvais monde.
+The confirmation windows (Yes / No) are Windows' own and keep their normal size. Typing a world name or a slot number requires a keyboard.
+
+## How saves are organised
+
+A world is identified by its seed. A save always goes into the folder of the world with the same seed: it cannot be stored in the wrong world.
 
 ```
 Saves/
-├── save1.dat ... save8.dat      slots du jeu
+├── save1.dat ... save8.dat      game slots
 └── Mondes/
-    └── <nom du monde>/
-        ├── seed.txt             seed du monde
+    └── <world name>/
+        ├── seed.txt             the world's seed
         └── save_2026-07-06_04h47.dat
 ```
 
-- Une save rangée est renommée d'après sa date de dernière modification. Si deux saves ont la même date, un numéro est ajouté (`_2`, `_3`...).
-- Pour ajouter un monde à la main, il suffit de créer un dossier dans `Mondes/` avec un `seed.txt` contenant la seed.
-- Un dossier sans `seed.txt` valide est ignoré par le programme.
+- A stored save is renamed after its last-modified date. If two saves have the same date, a number is appended (`_2`, `_3`...).
+- To add a world by hand, create a folder in `Mondes/` with a `seed.txt` containing the seed.
+- A folder without a valid `seed.txt` is ignored by the program.
 
-## Format des saves
+## Save format
 
-Les fichiers `.dat` sont du JSON compressé en gzip. Le programme ne lit que le début du fichier, où se trouvent la seed (`"seed"`) et le mode (`"isCreativeMode"`). Il ne modifie jamais le contenu d'une save.
+The `.dat` files are gzip-compressed JSON. The program only reads the beginning of the file, where the seed (`"seed"`) and the mode (`"isCreativeMode"`) are found. It never modifies the contents of a save.
 
-## Réglages
+## Settings
 
-Quelques constantes en haut de `save_manager.py` :
+A few constants at the top of `save_manager.py`:
 
-| Constante | Rôle | Valeur |
+| Constant | Purpose | Value |
 |---|---|---|
-| `NOMBRE_SLOTS` | Nombre de slots affichés | `8` |
-| `DOSSIER_SAVES` | Dossier des saves du jeu | `Documents\Primitier\Saves` |
-| `DOSSIER_MONDES` | Dossier où sont rangés les mondes | `Saves\Mondes` |
-| `ECHELLE_VR` | Grossissement du mode VR | `1.75` |
-| `LARGEUR_DEFILEMENT_VR` | Largeur des barres de défilement en VR (pixels) | `40` |
+| `NOMBRE_SLOTS` | Number of slots shown | `8` |
+| `DOSSIER_SAVES` | Folder of the game's saves | `Documents\Primitier\Saves` |
+| `DOSSIER_MONDES` | Folder where worlds are stored | `Saves\Mondes` |
+| `ECHELLE_VR` | Magnification in VR mode | `1.75` |
+| `LARGEUR_DEFILEMENT_VR` | Scrollbar width in VR mode (pixels) | `40` |
