@@ -6,24 +6,33 @@ Le jeu n'a que 9 slots (save1.dat ... save9.dat). Ce script permet de :
 - donner un nom à un monde : un dossier Mondes/<nom>/ est créé, avec un
   fichier seed.txt qui contient la seed du monde ;
 - déplacer une save d'un slot vers le dossier de son monde (libère le slot) ;
-- recopier une save rangée vers un slot pour y rejouer.
+- recopier une save rangée vers un slot pour y rejouer ;
+- supprimer une save (slot ou save rangée), envoyée à la corbeille Windows.
 
 Un monde est reconnu par sa seed : une save va toujours dans le dossier du
 monde qui a la même seed, impossible de la ranger dans le mauvais monde.
 """
+import ctypes
 import gzip
 import os
 import re
 import shutil
 import time
 import tkinter as tk
+from ctypes import wintypes
+from tkinter import font as tkfont
 from tkinter import messagebox, simpledialog, ttk
 from typing import Dict, List, Optional
 
 DOSSIER_SAVES = os.path.dirname(os.path.abspath(__file__))
 DOSSIER_MONDES = os.path.join(DOSSIER_SAVES, "Mondes")
-NOMBRE_SLOTS = 9
+NOMBRE_SLOTS = 8
 FICHIER_SEED = "seed.txt"
+
+# Mode VR : tout est grossi pour être lisible et cliquable dans le casque.
+ECHELLE_VR = 1.75
+LARGEUR_DEFILEMENT_VR = 40
+POLICES = ("TkDefaultFont", "TkTextFont", "TkHeadingFont")
 
 CARACTERES_INTERDITS = '\\/:*?"<>|'
 NOMS_RESERVES = {"CON", "PRN", "AUX", "NUL"} | {
@@ -169,6 +178,37 @@ def copier_vers_slot(chemin_save: str, numero: int, ecraser: bool = False) -> No
     shutil.copy2(chemin_save, destination)
 
 
+class _SHFILEOPSTRUCTW(ctypes.Structure):
+    if ctypes.sizeof(ctypes.c_void_p) == 4:
+        _pack_ = 1
+    _fields_ = [
+        ("hwnd", wintypes.HWND),
+        ("wFunc", wintypes.UINT),
+        ("pFrom", wintypes.LPCWSTR),
+        ("pTo", wintypes.LPCWSTR),
+        ("fFlags", wintypes.WORD),
+        ("fAnyOperationsAborted", wintypes.BOOL),
+        ("hNameMappings", wintypes.LPVOID),
+        ("lpszProgressTitle", wintypes.LPCWSTR),
+    ]
+
+
+def supprimer_save(chemin: str) -> None:
+    """Envoie une save à la corbeille Windows (récupérable en cas d'erreur)."""
+    if not os.path.isfile(chemin):
+        raise FileNotFoundError(f"Fichier introuvable : {chemin}")
+    # pFrom doit finir par deux caractères nuls : un ici, un ajouté par le buffer.
+    source = ctypes.create_unicode_buffer(os.path.abspath(chemin) + "\0")
+    operation = _SHFILEOPSTRUCTW()
+    operation.wFunc = 3  # FO_DELETE
+    operation.pFrom = ctypes.cast(source, wintypes.LPCWSTR)
+    # FOF_SILENT | FOF_NOCONFIRMATION | FOF_ALLOWUNDO | FOF_NOERRORUI
+    operation.fFlags = 0x0004 | 0x0010 | 0x0040 | 0x0400
+    code = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(operation))
+    if code != 0 or operation.fAnyOperationsAborted or os.path.exists(chemin):
+        raise OSError(f"Impossible d'envoyer à la corbeille : {os.path.basename(chemin)}")
+
+
 # --------------------------------------------------------------------------
 # Interface
 # --------------------------------------------------------------------------
@@ -177,27 +217,42 @@ class GestionnaireSaves(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Sauvegardes Primitier")
-        self.geometry("980x460")
-        self.minsize(820, 360)
 
         self.slots = []  # type: List[Dict]
         self.mondes = {}  # type: Dict[int, str]
 
+        # Le mode VR agrandit ces polices ; on garde leur taille d'origine.
+        self.tailles_polices = {
+            nom: tkfont.nametofont(nom).cget("size") for nom in POLICES
+        }
+        self.style = ttk.Style(self)
+        self.marge_bouton = self.style.lookup("TButton", "padding")
+        self.mode_vr = tk.BooleanVar(self, value=False)
+
         self._construire()
         self.actualiser()
+        self.appliquer_mode_vr()
 
     def _construire(self) -> None:
+        barre = ttk.Frame(self)
+        barre.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=(10, 0))
+        ttk.Checkbutton(
+            barre, text="Mode VR", style="Toolbutton", variable=self.mode_vr,
+            command=self.appliquer_mode_vr,
+        ).pack(side="right")
+
+        # Slots à gauche, mondes à droite.
         self.columnconfigure(0, weight=3)
         self.columnconfigure(1, weight=2)
-        self.rowconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
 
         # --- Slots du jeu ---
-        cadre_slots = ttk.LabelFrame(self, text="Slots du jeu", padding=8)
-        cadre_slots.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
-        cadre_slots.rowconfigure(0, weight=1)
-        cadre_slots.columnconfigure(0, weight=1)
+        self.cadre_slots = ttk.LabelFrame(self, text="Slots du jeu", padding=8)
+        self.cadre_slots.grid(row=1, column=0, sticky="nsew", padx=(10, 5), pady=10)
+        self.cadre_slots.rowconfigure(0, weight=1)
+        self.cadre_slots.columnconfigure(0, weight=1)
 
-        colonnes = (
+        self.colonnes_slots = (
             ("slot", "Slot", 45),
             ("monde", "Monde", 150),
             ("seed", "Seed", 100),
@@ -206,50 +261,140 @@ class GestionnaireSaves(tk.Tk):
             ("taille", "Taille", 65),
         )
         self.arbre_slots = ttk.Treeview(
-            cadre_slots, columns=[c[0] for c in colonnes], show="headings",
-            selectmode="browse", height=NOMBRE_SLOTS,
+            self.cadre_slots, columns=[c[0] for c in self.colonnes_slots],
+            show="headings", selectmode="browse", height=NOMBRE_SLOTS,
         )
-        for identifiant, titre, largeur in colonnes:
+        for identifiant, titre, _ in self.colonnes_slots:
             self.arbre_slots.heading(identifiant, text=titre)
-            self.arbre_slots.column(identifiant, width=largeur, anchor="w")
+            self.arbre_slots.column(identifiant, anchor="w")
         self.arbre_slots.tag_configure("vide", foreground="gray")
         self.arbre_slots.grid(row=0, column=0, sticky="nsew")
         self.arbre_slots.bind("<Double-1>", lambda _: self.deplacer_selection())
+        self.defilement_slots = self._creer_defilement(self.cadre_slots, self.arbre_slots)
 
-        boutons_slots = ttk.Frame(cadre_slots)
-        boutons_slots.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        ttk.Button(boutons_slots, text="Nommer ce monde",
-                   command=self.nommer_selection).pack(side="left")
-        ttk.Button(boutons_slots, text="Déplacer dans son monde  →",
-                   command=self.deplacer_selection).pack(side="left", padx=6)
-        ttk.Button(boutons_slots, text="Actualiser",
-                   command=self.actualiser).pack(side="right")
+        self.cadre_boutons_slots = ttk.Frame(self.cadre_slots)
+        self.cadre_boutons_slots.grid(
+            row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        self.boutons_slots = [
+            ttk.Button(self.cadre_boutons_slots, text="Nommer ce monde",
+                       command=self.nommer_selection),
+            ttk.Button(self.cadre_boutons_slots, text="Déplacer dans son monde  →",
+                       command=self.deplacer_selection),
+            ttk.Button(self.cadre_boutons_slots, text="Supprimer",
+                       command=self.supprimer_slot),
+            ttk.Button(self.cadre_boutons_slots, text="Actualiser",
+                       command=self.actualiser),
+        ]
 
         # --- Mondes ---
-        cadre_mondes = ttk.LabelFrame(self, text="Mes mondes", padding=8)
-        cadre_mondes.grid(row=0, column=1, sticky="nsew", padx=(5, 10), pady=10)
-        cadre_mondes.rowconfigure(0, weight=1)
-        cadre_mondes.columnconfigure(0, weight=1)
+        self.cadre_mondes = ttk.LabelFrame(self, text="Mes mondes", padding=8)
+        self.cadre_mondes.grid(row=1, column=1, sticky="nsew", padx=(5, 10), pady=10)
+        self.cadre_mondes.rowconfigure(0, weight=1)
+        self.cadre_mondes.columnconfigure(0, weight=1)
 
-        self.arbre_mondes = ttk.Treeview(
-            cadre_mondes, columns=("detail", "taille"), selectmode="browse",
+        self.colonnes_mondes = (
+            ("#0", "Monde / save", 250),
+            ("detail", "Seed / mode", 100),
+            ("taille", "Taille", 65),
         )
-        self.arbre_mondes.heading("#0", text="Monde / save")
-        self.arbre_mondes.heading("detail", text="Seed / mode")
-        self.arbre_mondes.heading("taille", text="Taille")
-        self.arbre_mondes.column("#0", width=210)
-        self.arbre_mondes.column("detail", width=100)
-        self.arbre_mondes.column("taille", width=65)
+        self.arbre_mondes = ttk.Treeview(
+            self.cadre_mondes, columns=("detail", "taille"), selectmode="browse",
+        )
+        for identifiant, titre, _ in self.colonnes_mondes:
+            self.arbre_mondes.heading(identifiant, text=titre)
         self.arbre_mondes.grid(row=0, column=0, sticky="nsew")
+        self.defilement_mondes = self._creer_defilement(self.cadre_mondes, self.arbre_mondes)
 
-        boutons_mondes = ttk.Frame(cadre_mondes)
-        boutons_mondes.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        ttk.Button(boutons_mondes, text="←  Copier vers un slot",
-                   command=self.copier_selection).pack(side="left")
-        ttk.Button(boutons_mondes, text="Renommer",
-                   command=self.renommer_monde).pack(side="left", padx=6)
-        ttk.Button(boutons_mondes, text="Ouvrir le dossier",
-                   command=self.ouvrir_dossier).pack(side="right")
+        self.cadre_boutons_mondes = ttk.Frame(self.cadre_mondes)
+        self.cadre_boutons_mondes.grid(
+            row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        self.boutons_mondes = [
+            ttk.Button(self.cadre_boutons_mondes, text="←  Copier vers un slot",
+                       command=self.copier_selection),
+            ttk.Button(self.cadre_boutons_mondes, text="Renommer",
+                       command=self.renommer_monde),
+            ttk.Button(self.cadre_boutons_mondes, text="Supprimer",
+                       command=self.supprimer_save_monde),
+            ttk.Button(self.cadre_boutons_mondes, text="Ouvrir le dossier",
+                       command=self.ouvrir_dossier),
+        ]
+
+    @staticmethod
+    def _creer_defilement(cadre: ttk.LabelFrame, arbre: ttk.Treeview) -> tk.Scrollbar:
+        """Barre de défilement large, affichée seulement en mode VR."""
+        barre = tk.Scrollbar(
+            cadre, orient="vertical", command=arbre.yview, width=LARGEUR_DEFILEMENT_VR)
+        arbre.configure(yscrollcommand=barre.set)
+        barre.grid(row=0, column=1, sticky="ns", padx=(6, 0))
+        return barre
+
+    # --- Mode VR ---
+
+    def _echelle_vr(self) -> float:
+        """Grossissement du mode VR, réduit si l'écran est trop étroit."""
+        return max(1.2, min(ECHELLE_VR, (self.winfo_screenwidth() - 172) / 652))
+
+    def appliquer_mode_vr(self) -> None:
+        """Règle polices, boutons, barres de défilement et fenêtre selon le mode."""
+        vr = self.mode_vr.get()
+        echelle = self._echelle_vr() if vr else 1.0
+
+        for nom, taille in self.tailles_polices.items():
+            tkfont.nametofont(nom).configure(size=int(round(taille * echelle)))
+        hauteur_texte = tkfont.nametofont("TkDefaultFont").metrics("linespace")
+        self.style.configure("Treeview", rowheight=hauteur_texte + (10 if vr else 5))
+        for nom_style in ("TButton", "Toolbutton"):
+            self.style.configure(nom_style, padding=12 if vr else self.marge_bouton)
+
+        # Les colonnes grossissent moins que le texte si les deux panneaux,
+        # côte à côte, ne tiendraient pas dans la largeur de l'écran.
+        echelle_colonnes = echelle
+        if vr:
+            largeur_base = sum(c[2] for c in self.colonnes_slots + self.colonnes_mondes)
+            place = self.winfo_screenwidth() - 2 * LARGEUR_DEFILEMENT_VR - 90
+            echelle_colonnes = min(echelle, place / largeur_base)
+        for arbre, colonnes in ((self.arbre_slots, self.colonnes_slots),
+                                (self.arbre_mondes, self.colonnes_mondes)):
+            for identifiant, _, largeur in colonnes:
+                arbre.column(identifiant, width=int(largeur * echelle_colonnes))
+
+        for barre in (self.defilement_slots, self.defilement_mondes):
+            if vr:
+                barre.grid()
+            else:
+                barre.grid_remove()
+
+        self._placer_boutons(self.cadre_boutons_slots, self.boutons_slots, vr)
+        self._placer_boutons(self.cadre_boutons_mondes, self.boutons_mondes, vr)
+
+        self.minsize(1, 1)
+        if vr:
+            self.state("zoomed")
+        else:
+            self.state("normal")
+            # Taille calculée d'après le contenu, pour qu'aucun bouton ne soit coupé.
+            self.geometry("")
+            self.update_idletasks()
+            self.minsize(self.winfo_reqwidth(), self.winfo_reqheight())
+
+    @staticmethod
+    def _placer_boutons(cadre: ttk.Frame, boutons: List[ttk.Button], vr: bool) -> None:
+        """VR : gros boutons de même largeur, deux par ligne. Sinon : sur une
+        ligne, serrés à gauche, le dernier à droite."""
+        for colonne in range(len(boutons) + 1):
+            cadre.columnconfigure(colonne, weight=0, uniform="")
+        if vr:
+            for indice, bouton in enumerate(boutons):
+                bouton.grid(row=indice // 2, column=indice % 2, sticky="ew",
+                            padx=4, pady=4)
+            for colonne in range(2):
+                cadre.columnconfigure(colonne, weight=1, uniform="boutons")
+        else:
+            dernier = len(boutons) - 1
+            for colonne, bouton in enumerate(boutons[:dernier]):
+                bouton.grid(row=0, column=colonne, sticky="", padx=(0, 6), pady=0)
+            cadre.columnconfigure(dernier, weight=1)
+            boutons[dernier].grid(row=0, column=dernier + 1, sticky="e", padx=0, pady=0)
 
     # --- Affichage ---
 
@@ -392,6 +537,45 @@ class GestionnaireSaves(tk.Tk):
         except OSError as erreur:
             messagebox.showerror("Copie impossible", str(erreur), parent=self)
         self.actualiser()
+
+    def _confirmer_suppression(self, chemin: str, description: str) -> None:
+        confirme = messagebox.askyesno(
+            "Supprimer la save",
+            f"Supprimer {description} ?\n\nElle sera envoyée à la corbeille.",
+            icon="warning", default="no", parent=self,
+        )
+        if not confirme:
+            return
+        try:
+            supprimer_save(chemin)
+        except OSError as erreur:
+            messagebox.showerror("Suppression impossible", str(erreur), parent=self)
+        self.actualiser()
+
+    def supprimer_slot(self) -> None:
+        selection = self.arbre_slots.selection()
+        if not selection:
+            messagebox.showinfo("Slots", "Sélectionne d'abord un slot.", parent=self)
+            return
+        slot = self.slots[int(selection[0]) - 1]
+        if not slot["existe"]:
+            messagebox.showinfo(
+                "Slots", f"Le slot {slot['numero']} est déjà vide.", parent=self)
+            return
+        monde = self.arbre_slots.set(selection[0], "monde")
+        self._confirmer_suppression(
+            slot["chemin"], f"la save du slot {slot['numero']} — {monde}")
+
+    def supprimer_save_monde(self) -> None:
+        selection = self.arbre_mondes.selection()
+        if not selection or not self.arbre_mondes.parent(selection[0]):
+            messagebox.showinfo(
+                "Mondes", "Sélectionne d'abord une save dans un monde.", parent=self)
+            return
+        chemin = selection[0]
+        monde = os.path.basename(os.path.dirname(chemin))
+        self._confirmer_suppression(
+            chemin, f"« {os.path.basename(chemin)} » du monde « {monde} »")
 
     def ouvrir_dossier(self) -> None:
         selection = self.arbre_mondes.selection()
