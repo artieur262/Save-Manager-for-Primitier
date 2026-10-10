@@ -24,7 +24,20 @@ from tkinter import font as tkfont
 from tkinter import messagebox, simpledialog, ttk
 from typing import Dict, List, Optional
 
-DOSSIER_SAVES = os.path.dirname(os.path.abspath(__file__))
+
+def dossier_documents() -> str:
+    """Dossier Documents de l'utilisateur Windows courant (même s'il a été
+    déplacé, par exemple dans OneDrive)."""
+    chemin = ctypes.create_unicode_buffer(wintypes.MAX_PATH)
+    # 5 = CSIDL_PERSONAL (Documents)
+    if ctypes.windll.shell32.SHGetFolderPathW(None, 5, None, 0, chemin) == 0 and chemin.value:
+        return chemin.value
+    return os.path.join(os.path.expanduser("~"), "Documents")
+
+
+# Chemin absolu, calculé pour l'utilisateur courant : le script marche quel
+# que soit le dossier où il est rangé et celui depuis lequel on le lance.
+DOSSIER_SAVES = os.path.join(dossier_documents(), "Primitier", "Saves")
 DOSSIER_MONDES = os.path.join(DOSSIER_SAVES, "Mondes")
 NOMBRE_SLOTS = 8
 FICHIER_SEED = "seed.txt"
