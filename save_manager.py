@@ -3,7 +3,7 @@ Gestionnaire de sauvegardes Primitier.
 
 Le jeu n'a que 9 slots (save1.dat ... save9.dat). Ce script permet de :
 - voir le contenu des 9 slots (seed, mode, date) ;
-- donner un nom à un monde : un dossier Mondes/<nom>/ est créé, avec un
+- donner un nom à un monde : un dossier Worlds/<nom>/ est créé, avec un
   fichier seed.txt qui contient la seed du monde ;
 - déplacer une save d'un slot vers le dossier de son monde (libère le slot) ;
 - recopier une save rangée vers un slot pour y rejouer ;
@@ -38,7 +38,7 @@ def dossier_documents() -> str:
 # Chemin absolu, calculé pour l'utilisateur courant : le script marche quel
 # que soit le dossier où il est rangé et celui depuis lequel on le lance.
 DOSSIER_SAVES = os.path.join(dossier_documents(), "Primitier", "Saves")
-DOSSIER_MONDES = os.path.join(DOSSIER_SAVES, "Mondes")
+DOSSIER_MONDES = os.path.join(DOSSIER_SAVES, "Worlds")
 NOMBRE_SLOTS = 8
 FICHIER_SEED = "seed.txt"
 
