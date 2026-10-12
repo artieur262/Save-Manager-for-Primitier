@@ -5,7 +5,7 @@ This project provides a small graphical interface to organise Primitier saves by
 ## What the program does
 
 - It shows the game slots (`save1.dat` to `save8.dat`) with, for each one, the world name, the seed, the mode (Creative or Survival), the date and the size.
-- It lets you give a world a name: a `Mondes/<name>/` folder is created, with a `seed.txt` file containing the world's seed.
+- It lets you give a world a name: a `Worlds/<name>/` folder is created, with a `seed.txt` file containing the world's seed.
 - It moves a save from a slot to its world's folder, which frees the slot.
 - It copies a stored save back to a slot so you can play it again.
 - It deletes a save by sending it to the Windows Recycle Bin.
