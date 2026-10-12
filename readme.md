@@ -5,7 +5,7 @@ Ce projet fournit une petite interface graphique pour ranger les sauvegardes de 
 ## Ce que fait le programme
 
 - Il affiche les slots du jeu (`save1.dat` à `save8.dat`) avec, pour chacun, le nom du monde, la seed, le mode (Créatif ou Survie), la date et la taille.
-- Il permet de donner un nom à un monde : un dossier `Mondes/<nom>/` est créé, avec un fichier `seed.txt` qui contient la seed du monde.
+- Il permet de donner un nom à un monde : un dossier `Worlds/<nom>/` est créé, avec un fichier `seed.txt` qui contient la seed du monde.
 - Il déplace une save d'un slot vers le dossier de son monde, ce qui libère le slot.
 - Il recopie une save rangée vers un slot pour y rejouer.
 - Il supprime une save, en l'envoyant à la corbeille Windows.
